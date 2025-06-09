@@ -326,22 +326,6 @@ async def send_vid(bot: Client, m: Message, cc, filename, thumb, name, prog):
     os.remove(watermarked_filename)
     os.remove(f"{filename}.jpg")
     await reply.delete(True)
-    try:
-        if thumb == "/d":
-            thumbnail = f"{filename}.jpg"
-        else:
-            thumbnail = thumb
-            
-    except Exception as e:
-        await m.reply_text(str(e))
-      
-    dur = int(duration(filename))
-    start_time = time.time()
+    
 
-    try:
-        await bot.send_video(channel_id, filename, caption=cc, supports_streaming=True, height=720, width=1280, thumb=thumbnail, duration=dur, progress=progress_bar, progress_args=(reply, start_time))
-    except Exception:
-        await bot.send_document(channel_id, filename, caption=cc, progress=progress_bar, progress_args=(reply, start_time))
-    os.remove(filename)
-    await reply.delete(True)
-    os.remove(f"{filename}.jpg")
+    
