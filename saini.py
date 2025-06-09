@@ -292,10 +292,40 @@ async def download_and_decrypt_video(url, cmd, name, key):
             print(f"Failed to decrypt {video_path}.")  
             return None  
 
-async def send_vid(bot: Client, m: Message, cc, filename, thumb, name, prog, channel_id):
-    subprocess.run(f'ffmpeg -i "{filename}" -ss 00:00:10 -vframes 1 "{filename}.jpg"', shell=True)
-    await prog.delete (True)
-    reply = await bot.send_message(channel_id, f"**Generate Thumbnail:**\n{name}")
+async def send_vid(bot: Client, m: Message, cc, filename, thumb, name, prog):
+    # Generate a thumbnail
+    subprocess.run(f'ffmpeg -i "{filename}" -ss 00:01:00 -vframes 1 "{filename}.jpg"', shell=True)
+    await prog.delete(True)
+    reply = await m.reply_text(f"**★彡 ᵘᵖˡᵒᵃᵈⁱⁿᵍ 彡★ ...⏳**\n\n📚𝐓𝐢𝐭𝐥𝐞 » `{name}`\n\n✦𝐁𝐨𝐭 𝐌𝐚𝐝𝐞 𝐁𝐲 ✦ ~```*_NITISH BOT*_~```")
+
+    try:
+        if thumb == "no":
+            thumbnail = f"{filename}.jpg"
+        else:
+            thumbnail = thumb
+    except Exception as e:
+        await m.reply_text(str(e))
+
+    # Add watermark text overlay to the video with black color and 20% opacity
+    watermarked_filename = f"watermarked_{filename}"
+    watermark_text = "Nitish 🐒💕N"
+    subprocess.run(
+        f'ffmpeg -i "{filename}" -vf "drawtext=text=\'{watermark_text}\':fontcolor=black@0.2:fontsize=24:x=(w-text_w)/2:y=(h-text_h)/2" -codec:a copy "{watermarked_filename}"', 
+        shell=True
+    )
+
+    dur = int(duration(watermarked_filename))
+
+    start_time = time.time()
+
+    try:
+        await m.reply_video(watermarked_filename, caption=cc, supports_streaming=True, height=720, width=1280, thumb=thumbnail, duration=dur, progress=progress_bar, progress_args=(reply, start_time))
+    except Exception:
+        await m.reply_document(watermarked_filename, caption=cc, progress=progress_bar, progress_args=(reply, start_time))
+
+    os.remove(watermarked_filename)
+    os.remove(f"{filename}.jpg")
+    await reply.delete(True)
     try:
         if thumb == "/d":
             thumbnail = f"{filename}.jpg"
