@@ -20,6 +20,7 @@ from pathlib import Path
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import unpad
 from base64 import b64decode
+from helpers import progress_bar, duration
 
 def duration(filename):
     result = subprocess.run(["ffprobe", "-v", "error", "-show_entries",
@@ -293,39 +294,75 @@ async def download_and_decrypt_video(url, cmd, name, key):
             return None  
 
 async def send_vid(bot: Client, m: Message, cc, filename, thumb, name, prog):
-    # Generate a thumbnail
+    # Generate thumbnail
     subprocess.run(f'ffmpeg -i "{filename}" -ss 00:01:00 -vframes 1 "{filename}.jpg"', shell=True)
     await prog.delete(True)
-    reply = await m.reply_text(f"**★彡 ᵘᵖˡᵒᵃᵈⁱⁿᵍ 彡★ ...⏳**\n\n📚𝐓𝐢𝐭𝐥𝐞 » `{name}`\n\n✦𝐁𝐨𝐭 𝐌𝐚𝐝𝐞 𝐁𝐲 ✦ ~```*_NITISH BOT*_~```")
+    reply = await m.reply_text(
+        f"**★彡 ᵘᵖˡᵒᵃᵈⁱⁿᵍ 彡★ ...⏳**\n\n📚𝐓𝐢𝐭𝐥𝐞 » `{name}`\n\n✦𝐁𝐨𝐭 𝐌𝐚𝐝𝐞 𝐁𝐲 ✦ Nitish bot 🐒"
+    )
 
     try:
-        if thumb == "no":
-            thumbnail = f"{filename}.jpg"
-        else:
-            thumbnail = thumb
+        thumbnail = f"{filename}.jpg" if thumb == "no" else thumb
     except Exception as e:
         await m.reply_text(str(e))
+        return
 
-    # Add watermark text overlay to the video with black color and 20% opacity
-    watermarked_filename = f"watermarked_{filename}"
     watermark_text = "Nitish 🐒💕N"
+    intro_black = f"intro_black.mp4"
+    text_overlay = f"drawtext=text='{watermark_text}':fontcolor=white:fontsize=30:x=(w-text_w)/2:y=(h-text_h)/2"
+
+    # Get resolution of original video
+    probe_cmd = f'ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "{filename}"'
+    width_height = subprocess.check_output(probe_cmd, shell=True).decode().strip()
+    
+    # 1. Create 1-second black intro clip with watermark
     subprocess.run(
-        f'ffmpeg -i "{filename}" -vf "drawtext=text=\'{watermark_text}\':fontcolor=black@0.2:fontsize=24:x=(w-text_w)/2:y=(h-text_h)/2" -codec:a copy "{watermarked_filename}"', 
+        f'ffmpeg -f lavfi -i color=c=black:s={width_height}:d=1 '
+        f'-vf "{text_overlay}" -c:v libx264 -t 1 -pix_fmt yuv420p "{intro_black}"',
+        shell=True
+    )
+
+    # 2. Concatenate intro + original
+    concat_list = "concat_list.txt"
+    with open(concat_list, "w") as f:
+        f.write(f"file '{intro_black}'\n")
+        f.write(f"file '{filename}'\n")
+
+    watermarked_filename = f"watermarked_{filename}"
+    subprocess.run(
+        f'ffmpeg -f concat -safe 0 -i {concat_list} -c copy "{watermarked_filename}"',
         shell=True
     )
 
     dur = int(duration(watermarked_filename))
-
     start_time = time.time()
 
     try:
-        await m.reply_video(watermarked_filename, caption=cc, supports_streaming=True, height=720, width=1280, thumb=thumbnail, duration=dur, progress=progress_bar, progress_args=(reply, start_time))
+        await m.reply_video(
+            watermarked_filename,
+            caption=cc,
+            supports_streaming=True,
+            height=720,
+            width=1280,
+            thumb=thumbnail,
+            duration=dur,
+            progress=progress_bar,
+            progress_args=(reply, start_time),
+        )
     except Exception:
-        await m.reply_document(watermarked_filename, caption=cc, progress=progress_bar, progress_args=(reply, start_time))
+        await m.reply_document(
+            watermarked_filename,
+            caption=cc,
+            progress=progress_bar,
+            progress_args=(reply, start_time),
+        )
 
-    os.remove(watermarked_filename)
-    os.remove(f"{filename}.jpg")
+    # Cleanup
+    for f in [watermarked_filename, f"{filename}.jpg", intro_black, concat_list]:
+        if os.path.exists(f):
+            os.remove(f)
+
     await reply.delete(True)
-    
+
 
     
